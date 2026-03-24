@@ -110,7 +110,7 @@ struct ShameTickerView: View {
                     offset = -500
                 }
             }
-            .onChange(of: message) { _ in
+            .onChange(of: message) {
                 offset = geo.size.width
                 withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
                     offset = -500
