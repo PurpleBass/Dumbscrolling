@@ -32,7 +32,7 @@ struct ScrollingBanner: View {
                     .offset(x: offset)
             }
             .clipped()
-            .onChange(of: text) { _ in
+            .onChange(of: text) {
                 offset = w
                 startScrolling(width: w)
             }
