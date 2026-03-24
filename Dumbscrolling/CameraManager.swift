@@ -8,6 +8,7 @@ class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
     private var pipController: AVPictureInPictureController?
     private var pipVC: AVPictureInPictureVideoCallViewController?
+    private var pipSourceView: UIView?
 
     override init() {
         super.init()
@@ -38,18 +39,37 @@ class CameraManager: NSObject, ObservableObject {
 
     func stop() {
         guard session.isRunning else { return }
+        stopPiP()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.session.stopRunning()
             DispatchQueue.main.async { self?.isRunning = false }
         }
     }
 
-    func setupPiP(previewLayer: AVCaptureVideoPreviewLayer) {
+    func setupPiP() {
         guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+
+        // Build the PiP view controller and embed camera preview into it
         let vc = AVPictureInPictureVideoCallViewController()
         vc.preferredContentSize = CGSize(width: 108, height: 144)
+
+        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.frame = CGRect(origin: .zero, size: CGSize(width: 108, height: 144))
+        previewLayer.connection?.isVideoMirrored = true
+        vc.view.layer.addSublayer(previewLayer)
+
+        // Source view must live in the window hierarchy
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
+
+        let sourceView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        sourceView.alpha = 0
+        window.addSubview(sourceView)
+        pipSourceView = sourceView
+
         let contentSource = AVPictureInPictureController.ContentSource(
-            activeVideoCallSourceView: UIView(),
+            activeVideoCallSourceView: sourceView,
             contentViewController: vc
         )
         pipController = AVPictureInPictureController(contentSource: contentSource)
@@ -58,10 +78,15 @@ class CameraManager: NSObject, ObservableObject {
     }
 
     func startPiP() {
+        if pipController == nil { setupPiP() }
         pipController?.startPictureInPicture()
     }
 
     func stopPiP() {
         pipController?.stopPictureInPicture()
+        pipSourceView?.removeFromSuperview()
+        pipSourceView = nil
+        pipController = nil
+        pipVC = nil
     }
 }

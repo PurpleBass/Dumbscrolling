@@ -4,8 +4,10 @@ import AVFoundation
 struct ContentView: View {
     @StateObject private var session = ShameSession()
     @StateObject private var camera = CameraManager()
+    @StateObject private var appSelection = AppSelectionManager.shared
     @State private var cameraAuthorized = false
     @State private var pulseScale: CGFloat = 1.0
+    @State private var showAppPicker = false
 
     private let shameEmojis = ["😳", "🤦", "😬", "🙈", "💀", "🫠", "😵", "🤡", "🫣"]
     @State private var emojiIndex = 0
@@ -35,6 +37,11 @@ struct ContentView: View {
                 // ── Timer ──
                 timerSection
 
+                Spacer().frame(height: 24)
+
+                // ── App triggers ──
+                appTriggerSection
+
                 Spacer()
 
                 // ── Start / Stop ──
@@ -44,13 +51,15 @@ struct ContentView: View {
             }
         }
         .onAppear { requestCamera() }
+        .sheet(isPresented: $showAppPicker) {
+            AppPickerView(manager: appSelection)
+        }
     }
 
     // MARK: - Subviews
 
     private var dynamicIslandSection: some View {
         ZStack {
-            // Simulated Dynamic Island pill
             RoundedRectangle(cornerRadius: 20)
                 .fill(Color.black)
                 .frame(width: 126, height: 37)
@@ -103,7 +112,6 @@ struct ContentView: View {
                 }
             }
 
-            // Corner label
             if session.isActive {
                 VStack {
                     Spacer()
@@ -138,6 +146,56 @@ struct ContentView: View {
         }
     }
 
+    private var appTriggerSection: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("SHAME TRIGGERS")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(.gray)
+                    .tracking(3)
+                Spacer()
+                if appSelection.selectedAppCount > 0 {
+                    Text("\(appSelection.selectedAppCount) APP\(appSelection.selectedAppCount == 1 ? "" : "S")")
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .foregroundColor(Color(red: 1, green: 0.6, blue: 0.0))
+                }
+            }
+            .padding(.horizontal, 32)
+
+            Button {
+                Task {
+                    if !appSelection.isAuthorized {
+                        await appSelection.requestAuthorization()
+                    }
+                    if appSelection.isAuthorized {
+                        showAppPicker = true
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: appSelection.selectedAppCount > 0 ? "apps.iphone" : "plus.circle")
+                        .font(.system(size: 13, weight: .bold))
+                    Text(appSelection.selectedAppCount > 0 ? "EDIT APPS" : "SELECT APPS")
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .tracking(1)
+                }
+                .foregroundColor(.black)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color(white: 0.75))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+
+            if appSelection.selectedAppCount > 0 {
+                Text("Camera will appear in Dynamic Island when you open these apps")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(Color(white: 0.4))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+        }
+    }
+
     private var controlButton: some View {
         Button {
             if session.isActive {
@@ -146,6 +204,7 @@ struct ContentView: View {
             } else {
                 session.start()
                 camera.start()
+                camera.startPiP()
                 Task { await LiveActivityManager.shared.start() }
                 cycleEmoji()
             }
